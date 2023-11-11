@@ -1,0 +1,52 @@
+name: Build and Publish Docker Images Demo
+
+on:
+  push:
+    branches: 
+      - 'master'
+
+jobs:
+  webapp:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo swapoff -a
+          sudo apt clean
+          docker image ls -aq
+          docker rmi $(docker image ls -aq)
+          find ~/work/_temp -name "cache.tgz" -exec rm -f {} \;
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h /
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v5.0.0
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: |
+            ${{ secrets.CW_DOCKER_REGISTRY }}/ecom-template-1:latest
+          cache-from: type=registry,ref=utechzo/ecom-template-1:latest
+          cache-to: type=inline
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push to Docker Hub Registry
+        run: |
+          docker push ${{ secrets.CW_DOCKER_REGISTRY }}/ecom-template-1:latest
